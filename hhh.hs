@@ -1,7 +1,7 @@
 import Data.List (intersperse, minimumBy, maximumBy, transpose)
 import Data.Foldable (toList)
 import qualified Data.Sequence as S
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, isNothing)
 
 
 data Square = Empty | X | O deriving (Eq, Show)
@@ -60,9 +60,7 @@ makeMove' grid s dx dy = S.update idx s grid
 
 -- checking for wins and AI (trivial minimax)
 filled :: Grid -> Bool
-filled grid = case S.elemIndexL Empty grid of
-                Nothing -> True
-                Just _ -> False
+filled grid = isNothing $ S.elemIndexL Empty grid
 
 matchingRow :: Grid -> Square -> Bool
 matchingRow grid square = any (all (== square)) rows

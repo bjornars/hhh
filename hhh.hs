@@ -1,8 +1,11 @@
 import Data.List (intersperse, minimumBy, maximumBy, transpose)
+import Data.Foldable (toList)
+import qualified Data.Sequence as S
 import Data.Maybe (isJust)
 
+
 data Square = Empty | X | O deriving (Eq, Show)
-type Grid = [Square]
+type Grid = S.Seq Square
 data Turn = TurnX | TurnO deriving (Eq, Show)
 data Board = Board Turn Grid
 
@@ -33,49 +36,44 @@ renderBoard :: Board -> IO ()
 renderBoard (Board _ grid) = putStrLn $ unlines rows
   where rows = interspersePad (replicate (numSquares * 2 + 1) '-') $ map cols grid'
         cols line = interspersePad '|' $ map toX line
-        grid' = unconcat numSquares grid
+        grid' = toMatrix numSquares grid
         interspersePad n xs = n : intersperse n xs ++ [n]
 
 -- generating and making moves
-unconcat :: Int -> [a] -> [[a]]
-unconcat _ [] = []
-unconcat n xs = h : unconcat n t
-    where (h, t) = splitAt n xs
-
-perm :: Turn -> Grid -> [Grid]
-perm turn = perm' []
-    where perm' :: Grid -> Grid -> [Grid]
-          perm' h (Empty: []) = [h ++ [turn2sq turn]]
-          perm' h (Empty: xs) = (h ++ turn2sq turn : xs) : perm' (h ++ [Empty]) xs
-          perm' h (x:xs) = perm' (h ++ [x]) xs
-          perm' _ _ = []
+toMatrix :: Int -> S.Seq a -> [[a]]
+toMatrix n xs
+    | S.null xs = []
+    | otherwise = toList h : toMatrix n t
+        where (h, t) = S.splitAt n xs
 
 generateNewMoves :: Turn -> Grid -> [Grid]
-generateNewMoves = perm 
+generateNewMoves turn grid = map setTurn $ S.elemIndicesL Empty grid
+    where setTurn idx = S.update idx (turn2sq turn) grid
 
 makeMove :: Board -> (Int, Int) -> Board
 makeMove (Board turn squares) (x, y) = Board (flipTurn turn) (makeMove' squares (turn2sq turn) x y)
 
 makeMove' :: Grid -> Square -> Int -> Int -> Grid
-makeMove' grid s dx dy = replace idx grid s
-    where replace i xs x = take i xs ++ [x] ++ drop (i + 1) xs
-          idx = coordsToIdx (dx, dy)
+makeMove' grid s dx dy = S.update idx s grid
+    where idx = coordsToIdx (dx, dy)
 
 
 -- checking for wins and AI (trivial minimax)
 filled :: Grid -> Bool
-filled grid = Empty `notElem` grid
+filled grid = case S.elemIndexL Empty grid of
+                Nothing -> True
+                Just _ -> False
 
 matchingRow :: Grid -> Square -> Bool
 matchingRow grid square = any (all (== square)) rows
-    where rows = unconcat numSquares grid
+    where rows = toMatrix numSquares grid
 
 matchingCol :: Grid -> Square -> Bool
-matchingCol grid = matchingRow $ concat $ transpose $ unconcat numSquares grid
+matchingCol grid = matchingRow $ S.fromList . concat $ transpose $ toMatrix numSquares grid
 
 matchingDiag :: Grid -> Square -> Bool
 matchingDiag grid square = matchNwSeDiag rows || matchNwSeDiag (map reverse rows)  -- todo
-        where rows = unconcat numSquares grid
+        where rows = toMatrix numSquares grid
               matchNwSeDiag xss = all (== square) $ zipWith (!!) xss [0..]
 
 isWin :: Grid -> Maybe Turn
@@ -122,7 +120,7 @@ getValidMove grid = do
             putStrLn "cannot parse"
             getValidMove grid
         Just (row, col) ->
-            if grid !! coordsToIdx (row, col) /= Empty then do
+            if grid `S.index` coordsToIdx (row, col) /= Empty then do
                 putStrLn "not empty"
                 getValidMove grid
             else
@@ -153,7 +151,7 @@ playGame (Board TurnO grid) = do
          playGame board'
 
 startBoard :: Board
-startBoard = Board TurnX $ replicate (numSquares `square` 2) Empty
+startBoard = Board TurnX $ S.replicate (numSquares `square` 2) Empty
     where square :: Int -> Int -> Int
           square x y = x ^ y
 

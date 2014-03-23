@@ -35,7 +35,8 @@ renderBoard (Board _ squares) = putStrLn $ unlines rows
 -- generating and making moves
 unconcat :: Int -> [a] -> [[a]]
 unconcat _ [] = []
-unconcat n xs = take n xs : unconcat n (drop n xs)
+unconcat n xs = h : unconcat n t
+    where (h, t) = splitAt n xs
 
 perm :: Turn -> [Square] -> Grid
 perm turn = perm' []
